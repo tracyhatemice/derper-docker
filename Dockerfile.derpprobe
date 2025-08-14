@@ -1,3 +1,4 @@
+# see https://blog.hellowood.dev/posts/tailscale-%E4%BD%BF%E7%94%A8-derp-probe-%E6%A3%80%E6%B5%8B%E8%87%AA%E5%BB%BA%E7%9A%84-derper-%E6%9C%8D%E5%8A%A1%E5%99%A8%E7%8A%B6%E6%80%81/
 FROM golang:1.23-alpine AS build-env
 
 WORKDIR /go/src/tailscale
