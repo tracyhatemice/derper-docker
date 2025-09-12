@@ -1,0 +1,50 @@
+networks:
+  # This example assumes you have a Traefik network already set up
+  # You may create one using: docker network create --ipv6 traefik (omit --ipv6 if you don't have IPv6)
+  # If you don't use Traefik, you can remove the network section and all traefik.* labels below
+  traefik:
+    external: true
+
+services:
+  derp:
+    container_name: derp
+    hostname: derp
+    image: tracyhatemice/derp:1.88.1
+    restart: unless-stopped
+    ports:
+      # - 80:80  # if you want to serve HTTP directly without traefik
+      # - 443:443  # if you want to serve HTTPS directly without traefik (also needs to set DERP_ADDR: 443 and DERP_CERT_MODE manual or letsencrypt)
+      - 3478:3478/udp
+    volumes:
+      # - /home/ubuntu/.acme.sh/derp.example.org:/app/certs:ro  # if use manual cert mode
+      - /var/run/tailscale/tailscaled.sock:/var/run/tailscale/tailscaled.sock
+    environment:
+      DERP_DOMAIN: derp.example.org
+      DERP_ADDR: :80  # default to :443; serves HTTPS if the port is 443 and/or -certmode is manual, otherwise HTTP.  See https://github.com/tailscale/tailscale/blob/main/cmd/derper/derper.go
+      DERP_HTTP_PORT: -1 # -1 to disable HTTP, default to 80
+      # DERP_CERT_MODE: manual (options are "manual", or "letsencrypt")
+      # DERP_CERT_DIR: /app/certs
+      DERP_STUN: true
+      DERP_STUN_PORT: 3478
+      DERP_VERIFY_CLIENTS: true
+    networks:
+      traefik:
+
+    labels:
+      traefik.enable: 'true'
+      traefik.docker.network: 'traefik'
+      
+      # HTTPS
+      traefik.http.routers.derp.rule: Host(`derp.example.org`)
+      traefik.http.routers.derp.entrypoints: http,https
+      traefik.http.routers.derp.middlewares: 'robots-txt-disallow-all@file,crowdsec@file'
+      traefik.http.routers.derp.tls: 'true'
+      traefik.http.routers.derp.tls.certresolver: cloudflare
+      traefik.http.routers.derp.tls.domains[0].main: 'derp.example.org'
+      traefik.http.routers.derp.service: derp
+      traefik.http.services.derp.loadbalancer.server.port: 80
+      
+      # STUN - derper STUN does not work well with Traefik, so we expose it directly
+      # traefik.udp.routers.derp.entrypoints: derp
+      # traefik.udp.routers.derp.service: derp
+      # traefik.udp.services.derp.loadbalancer.server.port: 16478
