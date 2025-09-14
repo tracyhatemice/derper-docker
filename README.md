@@ -1,15 +1,11 @@
 # Derper
 
-[![docker workflow](https://github.com/fredliang44/derper-docker/actions/workflows/docker-image.yml/badge.svg)](https://hub.docker.com/r/fredliang/derper)
-[![docker pulls](https://img.shields.io/docker/pulls/fredliang/derper.svg?color=brightgreen)](https://hub.docker.com/r/fredliang/derper)
-[![platfrom](https://img.shields.io/badge/platform-amd64%20%7C%20arm64-brightgreen)](https://hub.docker.com/r/fredliang/derper/tags)
+# Docker Setup
 
-# Setup
-
-> required: set env `DERP_DOMAIN` to your domain
+> required: copy compose.example.yaml to compose.yaml and adjust according to your needs.
 
 ```bash
-docker run -e DERP_DOMAIN=derper.your-domain.com -p 80:80 -p 443:443 -p 3478:3478/udp fredliang/derper
+docker compose up -d
 ```
 
 | env                    | required | description                                                                 | default value     |
@@ -31,3 +27,8 @@ Fully DERP setup offical documentation: https://tailscale.com/kb/1118/custom-der
 ## Client verification
 
 In order to use `DERP_VERIFY_CLIENTS`, the container needs access to Tailscale's Local API, which can usually be accessed through `/var/run/tailscale/tailscaled.sock`. If you're running Tailscale bare-metal on Linux, adding this to the `docker run` command should be enough: `-v /var/run/tailscale/tailscaled.sock:/var/run/tailscale/tailscaled.sock`
+
+# Binary Setup
+
+See README.md in ```contrib``` folder.
+

@@ -1,0 +1,56 @@
+[Unit]
+Description=Tailscale DERP Server
+After=network-online.target
+Wants=network-online.target
+Documentation=https://tailscale.com/kb/1118/custom-derp-servers/
+
+[Service]
+Type=simple
+User=derper
+Group=derper
+ExecStart=/usr/local/bin/derper \
+    --hostname=derper.example.org \
+    --certmode=letsencrypt \
+    --certdir=/etc/derper/ \
+    --a=:443 \
+    --verify-clients=true \
+    --verify-client-url=https://headscale.example.org/verify
+
+# Security settings
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/etc/derper
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+
+# Network capabilities
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+
+# Resource limits
+LimitNOFILE=1048576
+
+# Restart policy
+Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=30s
+TimeoutStopSec=30s
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=derper
+
+[Install]
+WantedBy=multi-user.target
