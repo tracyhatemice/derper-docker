@@ -18,15 +18,17 @@ services:
     volumes:
       # - /home/ubuntu/.acme.sh/derp.example.org:/app/certs:ro  # if use manual cert mode
       - /var/run/tailscale/tailscaled.sock:/var/run/tailscale/tailscaled.sock
+      - ./config/derper-mesh.key:/app/config/derper-mesh.key:ro  # if using mesh key authentication
     environment:
       DERP_DOMAIN: derp.example.org
       DERP_ADDR: :80  # default to :443; serves HTTPS if the port is 443 and/or -certmode is manual, otherwise HTTP.  See https://github.com/tailscale/tailscale/blob/main/cmd/derper/derper.go
       DERP_HTTP_PORT: -1 # -1 to disable HTTP, default to 80
       # DERP_CERT_MODE: manual (options are "manual", or "letsencrypt")
-      # DERP_CERT_DIR: /app/certs
+      # DERP_CERT_DIR: /app/certs  # Optional
       DERP_STUN: true
       DERP_STUN_PORT: 3478
       DERP_VERIFY_CLIENTS: true
+      DERP_MESH_PSK_FILE: /app/config/derper-mesh.key # Optional, enables mesh key authentication if set.
     networks:
       traefik:
 
@@ -48,3 +50,28 @@ services:
       # traefik.udp.routers.derp.entrypoints: derp
       # traefik.udp.routers.derp.service: derp
       # traefik.udp.services.derp.loadbalancer.server.port: 16478
+
+  derpprobe:
+    container_name: derpprobe
+    hostname: derpprobe
+    image: tracyhatemice/derpprobe:1.88.1
+    restart: unless-stopped
+    ports:
+      - "8030:8030"    
+    volumes:
+      - /var/run/tailscale/tailscaled.sock:/var/run/tailscale/tailscaled.sock
+    environment:
+      DERP_MAP: local # options: URL to DERP map (https:// or file://) or 'local'; https://login.tailscale.com/derpmap/default)
+      LISTEN: :8030  # HTTP listen address
+      ONCE: false # bool, probe once and print results, then exit; ignores the listen flag
+      SPREAD: false # bool, spread out probes over the interval
+      INTERVAL: 15s # duration, interval between probes
+      MESH_INTERVAL: 15s # duration, interval between mesh probes
+      STUN_INTERVAL: 15s # duration, interval between STUN probes
+      TLS_INTERVAL: 15s # duration, interval between TLS probes
+      BW_INTERVAL: 0 # duration, interval between bandwidth probes (0 to disable)
+      BW_PROBE_SIZE_BYTES: 1000000 # int, size in bytes of bandwidth (1 MB)
+    networks:
+      traefik:
+    labels:
+      traefik.enable: 'false'

@@ -1,18 +1,28 @@
-# see https://blog.hellowood.dev/posts/tailscale-%E4%BD%BF%E7%94%A8-derp-probe-%E6%A3%80%E6%B5%8B%E8%87%AA%E5%BB%BA%E7%9A%84-derper-%E6%9C%8D%E5%8A%A1%E5%99%A8%E7%8A%B6%E6%80%81/
-FROM golang:1.23-alpine AS build-env
+FROM --platform=$BUILDPLATFORM golang:alpine AS builder
+WORKDIR /build
 
-WORKDIR /go/src/tailscale
+RUN apk add --no-cache git ca-certificates
 
-COPY tailscale/go.mod tailscale/go.sum ./
+RUN git clone https://github.com/tailscale/tailscale.git .
 RUN go mod download
 
-COPY tailscale .
-
+ARG DERPPROBE_VERSION=latest
+ARG TARGETPLATFORM
+ARG TARGETOS
 ARG TARGETARCH
-RUN GOARCH=$TARGETARCH go build -o  derpprobe cmd/derpprobe/derpprobe.go
 
-FROM alpine:3.18
+ENV CGO_ENABLED=0
+ENV GOOS=${TARGETOS}
+ENV GOARCH=${TARGETARCH}
+
+RUN go build -a -ldflags '-extldflags "-static"' -o derpprobe ./cmd/derpprobe
+
+FROM alpine:latest
+WORKDIR /app
+
 RUN apk add --no-cache ca-certificates
+
+COPY --from=builder /build/derpprobe /derpprobe
 
 ENV DERP_MAP=https://login.tailscale.com/derpmap/default
 ENV LISTEN=:8030
@@ -25,9 +35,8 @@ ENV TLS_INTERVAL=15s
 ENV BW_INTERVAL=0
 ENV BW_PROBE_SIZE_BYTES=1_000_000
 
-COPY --from=build-env /go/src/tailscale/derpprobe /usr/local/bin/derpprobe
-
-ENTRYPOINT ["sh", "-c", "/usr/local/bin/derpprobe \
+# See https://github.com/tailscale/tailscale/blob/main/cmd/derpprobe/derpprobe.go
+ENTRYPOINT ["sh", "-c", "/derpprobe \
     -derp-map=${DERP_MAP} \
     -listen=${LISTEN} \
     -once=${ONCE} \
