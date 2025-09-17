@@ -28,7 +28,7 @@ services:
       DERP_STUN: true
       DERP_STUN_PORT: 3478
       DERP_VERIFY_CLIENTS: true
-      DERP_MESH_PSK_FILE: /app/config/derper-mesh.key # Optional, enables mesh key authentication if set.
+      DERP_MESH_PSK_FILE: /app/config/derper-mesh.key # Optional, enables mesh key authentication if set.  Generate one with "openssl rand -hex 32 > derper-mesh.key"
     networks:
       traefik:
 
