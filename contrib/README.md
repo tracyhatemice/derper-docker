@@ -1,6 +1,4 @@
-
-
-## Run derper as a systemd service 
+# Run derper as a systemd service 
 
 Run derper as a systemd service without docker, with automatic TLS via Let's Encrypt.
 
@@ -31,6 +29,5 @@ chmod +x setup.sh
 - The service will automatically restart on failure
 - Logs are available via `journalctl -u derper -f`
 - The setup assumes your derper binary is at `/usr/local/bin/derper` - adjust the path in the service file if needed
-- I used port 3478/udp (standard STUN port) instead of 3467/udp in the firewall rules - adjust if 3467 is specifically required
 - The service uses Let's Encrypt for certificates, so ensure your domain points to this server
 
