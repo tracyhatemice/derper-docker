@@ -3,7 +3,7 @@ WORKDIR /build
 
 RUN apk add --no-cache git ca-certificates
 
-RUN git clone https://github.com/tailscale/tailscale.git .
+RUN git clone --branch v1.88.4 https://github.com/tailscale/tailscale.git .
 RUN go mod download
 
 ARG DERPPROBE_VERSION=latest
