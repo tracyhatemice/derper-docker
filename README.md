@@ -11,16 +11,13 @@ This repository provides a Dockerized setup for running `derper` and `derpprobe`
 
 1. Copy `compose.example.yaml` to `compose.yaml`.
 2. Adjust the configuration as needed for your environment.
+3. Bring up the container with ```docker compose up -d```
 
 The provided example uses Traefik to proxy ports 80 and 443, and to manage Let's Encrypt certificate issuance and renewal.
 
 If you prefer to let derper handle Let's Encrypt certificates directly, ensure that `DERP_ADDR` is set to `:443` and `DERP_CERT_MODE` is set to `letsencrypt`.  Also ensure that ports 80/tcp, 443/tcp, and 3478/udp are exposed and mapped directly to the host.
 
 If you want to use your own certificates, set `DERP_CERT_MODE` to `manual` and mount your certificate files into the container.
-
-```bash
-docker compose up -d
-```
 
 | env                    | required | description                                                                 | default value     |
 | -------------------    | -------- | ----------------------------------------------------------------------      | ----------------- |
@@ -32,7 +29,7 @@ docker compose up -d
 | DERP_STUN_PORT         | false    | The UDP port on which to serve STUN.                                        | 3478              |
 | DERP_HTTP_PORT         | false    | The port on which to serve HTTP. Set to -1 to disable                       | 80                |
 | DERP_VERIFY_CLIENTS    | false    | verify clients to this DERP server through a local tailscaled instance      | false             |
-| DERP_VERIFY_CLIENT_URL | false    | if non-empty, an admission controller URL for permitting client connections.  For self-hosted headscale, use /verify | ""                |
+| DERP_VERIFY_CLIENT_URL | false    | if non-empty, an admission controller URL for permitting client connections.  For self-hosted headscale, use `https://<FQDN>/verify` | ""                |
 
 ### Usage
 
@@ -41,8 +38,8 @@ Fully DERP setup offical documentation: https://tailscale.com/kb/1118/custom-der
 ### Note on Client Verification
 
 In order to use client verification, either use
-1. `DERP_VERIFY_CLIENTS`, then the container needs access to Tailscale's Local API, which can usually be accessed through `/var/run/tailscale/tailscaled.sock`. If you're running Tailscale bare-metal on Linux, adding this to the `docker run` command should be enough: `-v /var/run/tailscale/tailscaled.sock:/var/run/tailscale/tailscaled.sock`
-2. or use `DERP_VERIFY_CLIENT_URL`, which is an admission controller URL for permitting client connections. For self-hosted headscale, use `/verify`.
+1. `DERP_VERIFY_CLIENTS`, then the container needs access to Tailscale's Local API, which can usually be accessed through `/var/run/tailscale/tailscaled.sock`. If you're running Tailscale bare-metal on Linux, adding this to mount point: `/var/run/tailscale/tailscaled.sock:/var/run/tailscale/tailscaled.sock`
+2. or use `DERP_VERIFY_CLIENT_URL`, which is an admission controller URL for permitting client connections. For self-hosted headscale, use `https://<FQDN>/verify`.
 
 ## Binary Setup
 
