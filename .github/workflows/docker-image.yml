@@ -4,8 +4,8 @@ on:
   push:
     branches: [main]
   schedule:
-    # Runs every Saturday at midnight UTC
-    - cron: '0 0 * * SAT'
+    # Runs every Monday at midnight UTC
+    - cron: '0 0 * * MON'
   workflow_dispatch:
 
 permissions:
@@ -80,7 +80,7 @@ jobs:
         with:
           context: .
           file: ${{ matrix.image.dockerfile }}
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: |
             tracyhatemice/${{ matrix.image.name }}:${{ steps.tailscale.outputs.version }}
@@ -150,19 +150,20 @@ jobs:
     runs-on: ubuntu-latest
     if: needs.build.outputs.should_release == 'true'
     steps:
-      - name: Download all artifacts
+      - name: Download derp binary artifact
         uses: actions/download-artifact@v4
         with:
-          path: artifacts
+          name: derp-binary-${{ needs.build.outputs.version }}
+          path: .
 
-      - name: Display structure of downloaded files
-        run: ls -R artifacts
+      - name: Download derpprobe binary artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: derpprobe-binary-${{ needs.build.outputs.version }}
+          path: .
 
-      - name: Move artifacts to current directory
-        run: |
-          mv artifacts/derp-binary-${{ needs.build.outputs.version }}/*.tar.xz ./
-          mv artifacts/derpprobe-binary-${{ needs.build.outputs.version }}/*.tar.xz ./
-          ls -lh *.tar.xz
+      - name: Display downloaded files
+        run: ls -lh *.tar.xz
 
       - name: Check if release exists
         id: check_release
