@@ -3,10 +3,7 @@ WORKDIR /build
 
 RUN apk add --no-cache git ca-certificates
 
-RUN git clone --branch v1.88.4 https://github.com/tailscale/tailscale.git .
-RUN go mod download
-
-ARG DERPPROBE_VERSION=latest
+ARG DERPPROBE_VERSION=v1.90.1
 ARG TARGETPLATFORM
 ARG TARGETOS
 ARG TARGETARCH
@@ -14,6 +11,9 @@ ARG TARGETARCH
 ENV CGO_ENABLED=0
 ENV GOOS=${TARGETOS}
 ENV GOARCH=${TARGETARCH}
+
+RUN git clone --branch ${DERPPROBE_VERSION} https://github.com/tailscale/tailscale.git .
+RUN go mod download
 
 RUN go build -a -ldflags '-extldflags "-static"' -o derpprobe ./cmd/derpprobe
 
