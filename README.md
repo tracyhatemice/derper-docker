@@ -48,3 +48,9 @@ See README.md in ```contrib``` folder.
 # Todo
 
 Mesh setup with derper and derpprobe.  Though it's not really needed unless you need high availablity and want to have multiple derp servers in the same region.  Tailscale officially advise against mesh setup for custom derp servers if not needed.
+
+# Thanks
+
+- [fredliang44/derper-docker](https://github.com/fredliang44/derper-docker)
+- [Tailscale 使用 Derp Probe 检测自建的 Derper 服务器状态](https://blog.hellowood.dev/posts/tailscale-%E4%BD%BF%E7%94%A8-derp-probe-%E6%A3%80%E6%B5%8B%E8%87%AA%E5%BB%BA%E7%9A%84-derper-%E6%9C%8D%E5%8A%A1%E5%99%A8%E7%8A%B6%E6%80%81/)
+- [浅探 Tailscale DERP 中转服务](https://kiprey.github.io/2023/11/tailscale-derp/)
