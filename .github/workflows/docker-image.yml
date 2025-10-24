@@ -1,75 +1,212 @@
-name: Docker Image
+name: Build and Push DERP Docker Images
 
 on:
   push:
     branches: [main]
   schedule:
-    # Runs "every Monday" (see https://crontab.guru)
-    - cron: '0 0 * * MON'
+    # Runs every Saturday at midnight UTC
+    - cron: '0 0 * * SAT'
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   packages: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
+    outputs:
+      version: ${{ steps.tailscale.outputs.version }}
+      should_release: ${{ steps.check_image.outputs.exists == 'false' || github.event_name != 'schedule' }}
+    strategy:
+      matrix:
+        image:
+          - name: derp
+            dockerfile: Dockerfile
+            build_arg_name: DERP_VERSION
+            binary_path: /derper
+          - name: derpprobe
+            dockerfile: Dockerfile.derpprobe
+            build_arg_name: DERPPROBE_VERSION
+            binary_path: /derpprobe
+    
     steps:
-      - uses: actions/checkout@v2
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Log in to GitHub Docker Registry
-        uses: docker/login-action@v1
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-          logout: false
 
-      - name: Log in to DockerHub Registry
-        uses: docker/login-action@v1
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
 
-      - name: Get latest tailscale version
+      - name: Get latest Tailscale version
+        id: tailscale
         run: |
           TAILSCALE_VERSION=$(curl -s https://api.github.com/repos/tailscale/tailscale/releases/latest | jq -r '.tag_name')
-          echo "Latest tailscale version: $TAILSCALE_VERSION"
-          echo TAILSCALE_VERSION=$TAILSCALE_VERSION >> $GITHUB_ENV
+          echo "Latest Tailscale version: $TAILSCALE_VERSION"
+          echo "version=$TAILSCALE_VERSION" >> $GITHUB_OUTPUT
 
-      - name: Check if the image exists
+      - name: Check if image exists on GHCR
+        id: check_image
         run: |
-          GHCR_TOKEN=$(echo ${{ secrets.GITHUB_TOKEN }} | base64)
-          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-            -H "Authorization: Bearer $GHCR_TOKEN" \
-            https://ghcr.io/v2/${{ github.repository }}/manifests/${{ env.TAILSCALE_VERSION }}
-            )
-          IMAGE_EXISTS=$(if [ $HTTP_CODE -eq 200 ]; then echo "true"; else echo "false"; fi)
-          echo "HTTP code: $HTTP_CODE, Image exists: $IMAGE_EXISTS"
-          echo IMAGE_EXISTS=$IMAGE_EXISTS >> $GITHUB_ENV
+          # Try to pull manifest from GHCR
+          if docker manifest inspect ghcr.io/${{ github.actor }}/${{ matrix.image.name }}:${{ steps.tailscale.outputs.version }} >/dev/null 2>&1; then
+            echo "Image ghcr.io/${{ github.actor }}/${{ matrix.image.name }}:${{ steps.tailscale.outputs.version }} already exists"
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "Image ghcr.io/${{ github.actor }}/${{ matrix.image.name }}:${{ steps.tailscale.outputs.version }} does not exist"
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Set up QEMU
-        if: ${{ env.IMAGE_EXISTS == 'false' || github.event_name != 'schedule' }}
+        if: steps.check_image.outputs.exists == 'false' || github.event_name != 'schedule'
         uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
-        if: ${{ env.IMAGE_EXISTS == 'false' || github.event_name != 'schedule' }}
+        if: steps.check_image.outputs.exists == 'false' || github.event_name != 'schedule'
         uses: docker/setup-buildx-action@v3
 
-      - name: Build and push
-        if: ${{ env.IMAGE_EXISTS == 'false' || github.event_name != 'schedule' }}
+      - name: Build and push ${{ matrix.image.name }}
+        if: steps.check_image.outputs.exists == 'false' || github.event_name != 'schedule'
         uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: linux/amd64, linux/arm64
+          file: ${{ matrix.image.dockerfile }}
+          platforms: linux/amd64
           push: true
           tags: |
-            fredliang/derper:${{ env.TAILSCALE_VERSION }}
-            fredliang/derper:latest
-            fredliang/derper:${{ github.sha }}
-            ghcr.io/${{ github.actor }}/derper:${{ env.TAILSCALE_VERSION }}
-            ghcr.io/${{ github.actor }}/derper:latest
+            tracyhatemice/${{ matrix.image.name }}:${{ steps.tailscale.outputs.version }}
+            tracyhatemice/${{ matrix.image.name }}:latest
+            ghcr.io/${{ github.actor }}/${{ matrix.image.name }}:${{ steps.tailscale.outputs.version }}
+            ghcr.io/${{ github.actor }}/${{ matrix.image.name }}:latest
           build-args: |
-            DERP_VERSION=${{ env.TAILSCALE_VERSION }}
+            ${{ matrix.image.build_arg_name }}=${{ steps.tailscale.outputs.version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Extract binary from Docker image
+        if: steps.check_image.outputs.exists == 'false' || github.event_name != 'schedule'
+        run: |
+          # Pull the amd64 image
+          docker pull --platform linux/amd64 tracyhatemice/${{ matrix.image.name }}:${{ steps.tailscale.outputs.version }}
+          
+          # Create a container from the image
+          CONTAINER_ID=$(docker create --platform linux/amd64 tracyhatemice/${{ matrix.image.name }}:${{ steps.tailscale.outputs.version }})
+          
+          # Extract binary name from path (e.g., /derper -> derper)
+          BINARY_NAME=$(basename ${{ matrix.image.binary_path }})
+          
+          # Copy the binary from the container
+          docker cp ${CONTAINER_ID}:${{ matrix.image.binary_path }} ./${BINARY_NAME}
+          
+          # Remove the container
+          docker rm ${CONTAINER_ID}
+          
+          # Ensure binary is executable
+          chmod +x ${BINARY_NAME}
+          
+          # Create tar.xz archive
+          tar -cJf ${BINARY_NAME}_${{ steps.tailscale.outputs.version }}_linux_amd64.tar.xz ${BINARY_NAME}
+          
+          # Verify archive
+          ls -lh ${BINARY_NAME}_${{ steps.tailscale.outputs.version }}_linux_amd64.tar.xz
+
+      - name: Upload binary archive as artifact
+        if: steps.check_image.outputs.exists == 'false' || github.event_name != 'schedule'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.image.name }}-binary-${{ steps.tailscale.outputs.version }}
+          path: '*_${{ steps.tailscale.outputs.version }}_linux_amd64.tar.xz'
+          retention-days: 5
+
+      - name: Summary
+        if: steps.check_image.outputs.exists == 'false' || github.event_name != 'schedule'
+        run: |
+          BINARY_NAME=$(basename ${{ matrix.image.binary_path }})
+          echo "### Built and pushed ${{ matrix.image.name }} :rocket:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tailscale Version:** ${{ steps.tailscale.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Docker Hub:** tracyhatemice/${{ matrix.image.name }}:${{ steps.tailscale.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **GHCR:** ghcr.io/${{ github.actor }}/${{ matrix.image.name }}:${{ steps.tailscale.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Binary Archive:** ${BINARY_NAME}_${{ steps.tailscale.outputs.version }}_linux_amd64.tar.xz" >> $GITHUB_STEP_SUMMARY
+
+      - name: Skip message
+        if: steps.check_image.outputs.exists == 'true' && github.event_name == 'schedule'
+        run: |
+          echo "### Skipped ${{ matrix.image.name }} :zzz:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Image for version ${{ steps.tailscale.outputs.version }} already exists" >> $GITHUB_STEP_SUMMARY
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: needs.build.outputs.should_release == 'true'
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Display structure of downloaded files
+        run: ls -R artifacts
+
+      - name: Move artifacts to current directory
+        run: |
+          mv artifacts/derp-binary-${{ needs.build.outputs.version }}/*.tar.xz ./
+          mv artifacts/derpprobe-binary-${{ needs.build.outputs.version }}/*.tar.xz ./
+          ls -lh *.tar.xz
+
+      - name: Check if release exists
+        id: check_release
+        run: |
+          if gh release view ${{ needs.build.outputs.version }} --repo ${{ github.repository }} >/dev/null 2>&1; then
+            echo "Release ${{ needs.build.outputs.version }} already exists"
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "Release ${{ needs.build.outputs.version }} does not exist"
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create GitHub Release
+        if: steps.check_release.outputs.exists == 'false'
+        run: |
+          gh release create ${{ needs.build.outputs.version }} \
+            --repo ${{ github.repository }} \
+            --title "${{ needs.build.outputs.version }}" \
+            --notes "derp and derpprobe binaries for linux amd64." \
+            derper_${{ needs.build.outputs.version }}_linux_amd64.tar.xz \
+            derpprobe_${{ needs.build.outputs.version }}_linux_amd64.tar.xz
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload assets to existing release
+        if: steps.check_release.outputs.exists == 'true'
+        run: |
+          gh release upload ${{ needs.build.outputs.version }} \
+            --repo ${{ github.repository }} \
+            --clobber \
+            derper_${{ needs.build.outputs.version }}_linux_amd64.tar.xz \
+            derpprobe_${{ needs.build.outputs.version }}_linux_amd64.tar.xz
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Release summary
+        run: |
+          echo "### GitHub Release Created :package:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version:** ${{ needs.build.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Release URL:** https://github.com/${{ github.repository }}/releases/tag/${{ needs.build.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Assets:**" >> $GITHUB_STEP_SUMMARY
+          echo "- derper_${{ needs.build.outputs.version }}_linux_amd64.tar.xz" >> $GITHUB_STEP_SUMMARY
+          echo "- derpprobe_${{ needs.build.outputs.version }}_linux_amd64.tar.xz" >> $GITHUB_STEP_SUMMARY
