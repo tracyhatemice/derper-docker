@@ -3,7 +3,7 @@ WORKDIR /app
 
 RUN apk add --no-cache git ca-certificates
 
-ARG DERP_VERSION=v1.90.1
+ARG DERP_VERSION=latest
 ARG TARGETPLATFORM
 ARG TARGETOS
 ARG TARGETARCH
