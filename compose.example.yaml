@@ -27,6 +27,7 @@ services:
       # DERP_CERT_DIR: /app/certs  # Optional
       DERP_STUN: true
       DERP_STUN_PORT: 3478
+      # DERP_HOME: # Optional, what to serve at the root path. It may be left empty, blank for a blank page, or a URL to redirect to
       DERP_VERIFY_CLIENTS: true
       DERP_MESH_PSK_FILE: /app/config/derper-mesh.key # Optional, enables mesh key authentication if set.  Generate one with "openssl rand -hex 32 > derper-mesh.key"
     networks:

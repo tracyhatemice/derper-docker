@@ -31,6 +31,7 @@ ENV DERP_VERIFY_CLIENTS=false
 ENV DERP_VERIFY_CLIENT_URL=""
 ENV DERP_MESH_PSK_FILE=""
 ENV DERP_CONFIG_FILE=""
+ENV DERP_HOME=""
 
 COPY --from=builder /go/bin/derper /derper
 
@@ -41,6 +42,7 @@ CMD ["/bin/sh", "-c", "/derper \
     -a=$DERP_ADDR \
     -stun=$DERP_STUN \
     -stun-port=$DERP_STUN_PORT \
+    -home=$DERP_HOME \
     -http-port=$DERP_HTTP_PORT \
     -verify-clients=$DERP_VERIFY_CLIENTS \
     -verify-client-url=$DERP_VERIFY_CLIENT_URL \
